@@ -8,6 +8,8 @@ import rospy
 import subprocess
 from optparse import OptionParser
 from datetime import datetime
+import glob
+import os
 
 def message_to_csv(stream, msg, flatten=False):
     """
@@ -50,6 +52,7 @@ def format_csv_filename(form, topic_name):
     return ret
  
 def bag_to_csv(options, fname):
+    dir_name = os.path.dirname(fname) + "/"
     try:
         bag = rosbag.Bag(fname)
         streamdict= dict()
@@ -70,7 +73,7 @@ def bag_to_csv(options, fname):
             if streamdict.has_key(topic):
                 stream = streamdict[topic]
             else:
-                stream = open(format_csv_filename(options.output_file_format, fname[fname.rfind('/'):-4]+topic),'w')
+                stream = open(dir_name + format_csv_filename(options.output_file_format, fname[fname.rfind('/'):-4]+topic),'w')
                 streamdict[topic] = stream
                 # header
                 if options.header:
@@ -108,7 +111,13 @@ def main(options):
     app = QtGui.QApplication(sys.argv)
 
     #GetFilePath
-    files=SimplePyQtGUIKit.GetFilePath(isApp=True,caption="Select bag file",filefilter="*bag")
+    #files=SimplePyQtGUIKit.GetFilePath(isApp=True,caption="Select bag file",filefilter="*bag")
+
+    files = []
+    for file in glob.glob(options.dir+"/*/*/*"):
+        if file.endswith(".bag"):
+            files.append(file)
+
     #  print files
     print("files={:}\n".format(files))
     if len(files)<1:
@@ -116,13 +125,16 @@ def main(options):
         sys.exit()
 
     topics=GetTopicList(files[0])
-    selected=SimplePyQtGUIKit.GetCheckButtonSelect(topics,app=app,msg="Select topics to convert csv files")
+    if not options.all_topics:
+        selected=SimplePyQtGUIKit.GetCheckButtonSelect(topics,app=app,msg="Select topics to convert csv files")
 
-    options.topic_names=[]
-    for k,v in selected.items():
-        if v:
-            options.topic_names.append(k)
-    print("selected topics={:}\n".format(options.topic_names))
+        options.topic_names=[]
+        for k,v in selected.items():
+            if v:
+                options.topic_names.append(k)
+        print("selected topics={:}\n".format(options.topic_names))
+    else:
+        options.topic_names = topics
 
     if len(options.topic_names)==0:
         print("Error:Please select topics")
@@ -132,6 +144,7 @@ def main(options):
 
     print("Converting....")
     for i in range(0, len(files)):
+        print(files[i])
         bag_to_csv(options, files[i])
 
     QtGui.QMessageBox.information(QtGui.QWidget(), "Message", "Finish Convert!!")
@@ -153,7 +166,11 @@ if __name__ == '__main__':
     parser.add_option("-n", "--no-header", dest="header",
                       action="store_false", default=True,
                       help="no header / flatten array value")
+    parser.add_option("-d", "--dir", dest="dir",
+                      help="bag directory")
     (options, args) = parser.parse_args()
 
+
+    print(options)
 
     main(options)
